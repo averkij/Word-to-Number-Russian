@@ -1,5 +1,6 @@
 from number import NUMBER
 from natasha.extractors import Extractor
+from collections import defaultdict
 
 
 class NumberExtractor(Extractor):
@@ -16,27 +17,65 @@ class NumberExtractor(Extractor):
         Результат:
             new_text: текст с замененными числами
         """
+
+        # одна тысяча восемьсот тридцать пятый | тысяча девятьсот пятьдесят четвертый
+
+        # mask showing amount of words before squashing
+        counter_mask = []
+
         if text:
             new_text = ""
             start = 0
 
-            for match in self.parser.findall(text):
+            matches = self.parser.findall(text)
+            matches = self.handle_subsequent_numbers(matches)
+
+            for match in matches:
+
+                print("int", match.fact.int, "multiplier", match.fact.multiplier)
+
+                print(
+                    "match:",
+                    match,
+                )
+
+                print("START:", start, "STOP:", match.span.start)
+                print("span", text[start : match.span.start])
+
+                span_text = text[start : match.span.start]
+
+                if len(span_text) > 2:
+                    for _ in range(len(span_text.split())):
+                        counter_mask.append(1)
+                elif len(span_text) == 1 and span_text != " ":
+                    counter_mask.pop()
+
                 if match.fact.multiplier:
                     num = match.fact.int * match.fact.multiplier
+                    counter_mask.append(2)
                 else:
                     num = match.fact.int
+                    counter_mask.append(1)
 
                 new_text += text[start : match.span.start] + str(num)
                 start = match.span.stop
 
             new_text += text[start:]
 
+            for _ in range(len(text[start:].split())):
+                counter_mask.append(1)
+
+            print("counter_mask", counter_mask)
+
             if start == 0:
-                return text
+                return text, counter_mask
             else:
-                return new_text
+                return new_text, counter_mask
         else:
-            return None
+            return None, counter_mask
+
+    def handle_subsequent_numbers(self, matches):
+        return matches
 
     def replace_groups(self, text):
         """
@@ -82,24 +121,24 @@ class NumberExtractor(Extractor):
 
                 for match in group[0]:
 
-                    # print(match)
+                    print("MATCH", match)
 
                     curr_num = (
                         match.int * match.multiplier if match.multiplier else match.int
                     )
 
-                    print("\ncurr_num", curr_num)
-                    print("nums", nums)
+                    # print("\ncurr_num", curr_num)
+                    # print("nums", nums)
 
                     if match.multiplier:
                         num = (num + match.int) * match.multiplier
                         nums.append(num)
                         num = 0
                     elif num > curr_num or num == 0:
-                        print(f"{num} > {curr_num}")
+                        # print(f"{num} > {curr_num}")
                         num += curr_num
                     else:
-                        print(f"--------------кладем {num} в nums")
+                        # print(f"--------------кладем {num} в nums")
                         nums.append(num)
                         num = 0
                     # else:
@@ -108,10 +147,10 @@ class NumberExtractor(Extractor):
                     # print("------num", num)
 
                 if num > 0:
-                    print(f"кладем {num} в nums")
+                    # print(f"кладем {num} в nums")
                     nums.append(num)
 
-                print("=============================nums", nums)
+                # print("=============================nums", nums)
 
                 # new_text += str(sum(nums))
 
@@ -126,9 +165,9 @@ class NumberExtractor(Extractor):
 
                 start = group[2]
 
-                print("group", group)
+                # print("group", group)
 
-                print("--------------------=> new_text", new_text)
+                # print("--------------------=> new_text", new_text)
 
             new_text += text[start:]
 
@@ -142,33 +181,33 @@ class NumberExtractor(Extractor):
             return None
 
     def regroup_numbers(self, text):
-        replaced = self.replace(text)
-        print("REPLACED:", replaced)
-        res = regroup_numbers(replaced)
+        replaced, counter_mask = self.replace(text)
+        print("REPLACED:", replaced, "words counter:", counter_mask)
+        res = regroup_numbers(replaced, counter_mask)
         return res
 
 
 def is_summable(num1, num2):
-    print("sum", num1, num2)
-    if num1 == 10:
+    # print("sum", num1, num2)
+    if num1 == 10 or num2 == 0:
         return False
     place = len(str(num2))
     str1 = str(num1)
-    print(">", str1, place)
+    # print(">", str1, place)
     if len(str1) > place and str1[-place] == "0":
-        print("sum true")
+        # print("sum true")
         return True
     return False
 
 
 def can_be_merged(num1, num2):
-    print("merge", num1, num2)
+    # print("merge", num1, num2)
     # extract multiplexer
     if num2 > num1:
         m = get_multiplexer(num2)
         num = int(num2 / m)
         if is_summable(num1, num):
-            print("sum in merge")
+            # print("sum in merge")
             return True
     return False
 
@@ -190,7 +229,7 @@ extractor = NumberExtractor()
 
 text = "Это случилось в Девятьсот восемьдесят семь тысяч шестьсот пятьдесят четыре, это один два три по полудни"
 
-print(extractor.replace(text))
+# print(extractor.replace(text))
 
 # print(extractor.replace_groups("десять тысяча"))
 
@@ -201,54 +240,134 @@ print(extractor.replace(text))
 import re
 
 
-def regroup_numbers(text):
+def regroup_numbers(text, prev_mask):
     res = ""
+    # merged_indices = []
+    counter_mask = []
+
+    print("prev_mask", prev_mask)
+
     if text:
         start = 0
+        counter_start = 0
         for m in re.finditer("\d+[ \d]+\d+", text):
             if m.group(0).strip():
-                print(m.group(0))
+                print("group:", m.group(0))
                 print(m.span(0))
                 span_start = m.span(0)[0]
                 span_end = m.span(0)[1]
+
+                span_start_ix = len(text[:span_start].split())
+
+                # for _ in range(len(text[start:span_start].split())):
+                for c in prev_mask[counter_start:span_start_ix]:
+                    counter_mask.append(c)
+
                 res += text[start:span_start]
                 start = span_end
-                res += regroup_after_replace(m.group(0))
+
+                counter_start = len(text[:span_end].split())
+
+                regrouped, squashed_idxs = regroup_after_replace(
+                    m.group(0), span_start_ix, prev_mask
+                )
+                res += regrouped
+                # if indices:
+                # merged_indices.extend(indices)
+
+                print("squashed_idxs", squashed_idxs)
+
+                counter_mask.extend(squashed_idxs)
+
+        # for _ in range(len(text[start:].split())):
+        #     counter_mask.append(1)
+
+        for c in prev_mask[counter_start:]:
+            counter_mask.append(c)
+
         res += text[start:]
-    return res
+    return res, counter_mask
 
 
-def regroup_after_replace(text):
+def regroup_after_replace(text, start_ix, counter_mask):
+    # merged_indices = []
+    squashed_idxs = []
     if text:
+        print("number group:", text, "start_ix", start_ix)
+        # indices = []
         nums = [int(x) for x in text.split()]
         new_nums = [nums[0]]
+        # indices.append(start_ix)
+        submask = counter_mask[start_ix : start_ix + len(nums)]
+        start = 0
+        acc = submask[0]
         for i, n in enumerate(nums[1:]):
             if is_summable(new_nums[-1], n):
-                print("summable")
+                # print("summable")
                 new_nums[-1] = new_nums[-1] + n
+                # indices.append(i + 1 + start_ix)
+                acc += submask[i + 1]
+
             elif can_be_merged(new_nums[-1], n):
-                print("can be merged")
+                # print("can be merged")
                 m = get_multiplexer(n)
                 extracted = int(n / m)
                 new_nums[-1] = (new_nums[-1] + extracted) * m
+                # indices.append(i + 1 + start_ix)
+                acc += submask[i + 1]
+
             else:
-                print("not")
+                # print("not")
                 new_nums.append(n)
+
+                print("submask", submask)
+                print("submask[start : i + 1]", submask[start : i + 1])
+
+                squashed_idxs.append(acc)
+                start = i + 1
+
+                acc = submask[i + 1]
+
+                # if len(indices) > 1:
+                # merged_indices.append(indices)
+                # indices = [i + 1 + start_ix]
+        # if len(indices) > 1:
+        # merged_indices.append(indices)
+
+        squashed_idxs.append(acc)
+
         new_text = " ".join([str(n) for n in new_nums])
         print("new_text", new_text)
-        return new_text
+        return new_text, squashed_idxs
     else:
         return ""
 
 
+# fix long numbers
 text = "Госдолг США в тысяча девятьсот пятидесятом году составил двести пятьдесят шесть миллиардов девятьсот миллионов долларов"
 
-text = "Я купил 40 5 килограмм картошки и 7 пудов моркови"
+# fix 0
+text = "пять шесть ноль ноль ноль семь двадцать ноль"
 
-replaced = extractor.replace(text)
+# we need to return word indices
+text = "годы его правления одна тысяча восемьсот тридцать пятый и две тысячи девятьсот пятьдесят четвертый годы"
+
+text = "семьсот миллиардов один рубль, один, два, три три"
+
+text = "Выплаты за второго-третьего ребенка выросли на девять сотых процента"
+
+text = "Я купил сорок пять килограмм картошки и 7 пудов моркови"
+
+text = "один, ,два"
+
+replaced, counter_mask = extractor.replace(text)
 
 print("INPUT:", text)
 
 print("REPLACED:", replaced)
 
-print("RESULT:", regroup_numbers(replaced))
+text, mask = regroup_numbers(replaced, counter_mask)
+
+print(counter_mask)
+
+print("RESULT:", text, mask)
