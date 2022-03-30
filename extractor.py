@@ -2,23 +2,6 @@ from number import NUMBER
 from natasha.extractors import Extractor
 
 
-def squash_spaces(text):
-    return re.sub(" +", " ", text)
-
-
-def get_words_count(text):
-    text = squash_spaces(text)
-    if not text:
-        return 0
-
-    space_count = text.count(" ")
-
-    if space_count == 0:
-        return -1
-
-    return space_count - 1
-
-
 class NumberExtractor(Extractor):
     def __init__(self):
         super(NumberExtractor, self).__init__(NUMBER)
@@ -33,82 +16,64 @@ class NumberExtractor(Extractor):
         Результат:
             new_text: текст с замененными числами
         """
-        counter_mask = []
-
+        mask = []
         if text:
             new_text = ""
             start = 0
 
-            # for correct span words counting
+            # correct span counting
             text = f" {text} "
 
             matches = self.parser.findall(text)
-            matches = self.handle_subsequent_numbers(matches)
-
             for match in matches:
-
-                print("int", match.fact.int, "multiplier", match.fact.multiplier)
-
-                print(
-                    "match:",
-                    match,
-                )
-
-                span_text = text[start : match.span.start]
-
-                print("START:", start, "STOP:", match.span.start)
-                print(f"span: |{span_text}|")
-
-                append_to_mask_count = get_words_count(span_text)
-                if append_to_mask_count < 0:
-                    counter_mask = counter_mask[:-1]
-                elif append_to_mask_count > 0:
-                    for _ in range(append_to_mask_count):
-                        counter_mask.append(1)
-
-                print("CM1:", counter_mask)
-
-                # if len(span_text) > 2:
-                #     for _ in range(len(span_text.split()) - edge_coef(span_text)):
-                #         counter_mask.append(1)
-                # elif len(span_text) == 1 and span_text != " ":
-                #     counter_mask.pop()
+                span_text = text[start : match.span.start]                
+                mask = self.update_first_mask(span_text, mask) 
 
                 if match.fact.multiplier:
                     num = match.fact.int * match.fact.multiplier
-                    counter_mask.append(2)
+                    mask.append(2)
                 else:
                     num = match.fact.int
-                    counter_mask.append(1)
-
-                print("CM2:", counter_mask)
+                    mask.append(1)
 
                 new_text += text[start : match.span.start] + str(num)
                 start = match.span.stop
 
             new_text += text[start:]
 
-            # for _ in range(len(text[start:].split())):
-            #     counter_mask.append(1)
-
-            append_to_mask_count = get_words_count(text[start:])
-            if append_to_mask_count < 0:
-                counter_mask = counter_mask[:-1]
-            elif append_to_mask_count > 0:
-                for _ in range(append_to_mask_count):
-                    counter_mask.append(1)
-
-            print("counter_mask", counter_mask)
+            mask = self.update_first_mask(text[start:], mask)
 
             if start == 0:
-                return text.strip(), counter_mask
+                return text.strip(), mask
             else:
-                return new_text.strip(), counter_mask
+                return new_text.strip(), mask
         else:
-            return "", counter_mask
+            return "", mask
 
-    def handle_subsequent_numbers(self, matches):
-        return matches
+
+    def update_first_mask(self, span_text, mask):
+        append_to_mask_count = self.get_words_count(span_text)
+        if append_to_mask_count < 0:
+            mask = mask[:-1]
+        elif append_to_mask_count > 0:
+            for _ in range(append_to_mask_count):
+                mask.append(1)
+        return mask
+
+
+    def squash_spaces(self, text):
+        return re.sub(" +", " ", text)
+
+
+    def get_words_count(self, text):
+        text = self.squash_spaces(text)
+        if not text:
+            return 0
+        space_count = text.count(" ")
+        if space_count == 0:
+            return -1
+        return space_count - 1
+
 
     def replace_groups(self, text):
         """
