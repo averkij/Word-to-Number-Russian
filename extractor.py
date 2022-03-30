@@ -221,7 +221,7 @@ class NumberExtractor(Extractor):
     def regroup_numbers(self, text):
         replaced, counter_mask = self.replace(text)
         print("REPLACED:", replaced, "words counter:", counter_mask)
-        res = regroup_numbers(replaced, counter_mask)
+        res = regroup_numbers3(replaced, counter_mask)
         return res
 
 
@@ -278,79 +278,275 @@ text = "Это случилось в Девятьсот восемьдесят �
 import re
 
 
-def regroup_numbers(text, prev_mask):
+def regroup_numbers2(text, first_mask):
     res = ""
     # merged_indices = []
-    counter_mask = []
+    curr_mask = []
 
-    print("prev_mask", prev_mask)
+    print("first_mask", first_mask)
 
     if text:
         start = 0
         counter_start = 0
+
+
         for m in re.finditer("\d+[ \d]+\d+", text):
             if m.group(0).strip():
+                
                 print("group:", m.group(0))
                 print(m.span(0))
+
                 span_start = m.span(0)[0]
                 span_end = m.span(0)[1]
 
-                span_text = text[:span_start]
-                print("SPAN:", span_text)
+                span_text = text[:span_end]
+                print("SPAN TEXT:", span_text)
 
-                span_start_ix = len(span_text.split())
+                mask_index = len(span_text.split())
+                mask_part = first_mask[:mask_index]
+
+                print("mask_part:", mask_part)
 
                 # for _ in range(len(text[start:span_start].split())):
-                for c in prev_mask[counter_start:span_start_ix]:
-                    counter_mask.append(c)
+                # for c in prev_mask[counter_start:span_start_ix]:
+                #     counter_mask.append(c)
 
-                print("span_start_ix", span_start_ix)
-                print("CM3:", counter_mask)
+                # print("span_start_ix", span_start_ix)
+                # print("CM3:", counter_mask)
 
+                #accumulate result text
                 res += text[start:span_start]
                 start = span_end
 
-                counter_start = len(text[:span_end].split())
 
-                regrouped, squashed_idxs = regroup_after_replace(
-                    m.group(0), span_start_ix, prev_mask
-                )
+
+                # counter_start = len(text[:span_end].split())
+
+                regrouped, squashed_idxs = regroup_after_replace(m.group(0))
                 res += regrouped
+
                 # if indices:
                 # merged_indices.extend(indices)
 
                 print("squashed_idxs", squashed_idxs)
 
-                counter_mask.extend(squashed_idxs)
+                mask_part = update_mask(mask_part, squashed_idxs)
+
+                print("CURR MASK:", mask_part)
+
+                merge_masks(first_mask, mask_part)
+
+                # counter_mask.extend(squashed_idxs)
 
         # for _ in range(len(text[start:].split())):
         #     counter_mask.append(1)
 
-        for c in prev_mask[counter_start:]:
-            counter_mask.append(c)
+        # for c in prev_mask[counter_start:]:
+        #     counter_mask.append(c)
 
         res += text[start:]
-    return res, counter_mask
+    return res, mask_part
 
 
-def regroup_after_replace(text, start_ix, counter_mask):
+def regroup_numbers3(text, first_mask):
+    res = ""
+    # merged_indices = []
+    curr_mask = []
+
+    print("START----------------------------")
+
+    print("first_mask", first_mask)
+
+    if text:
+        start = 0
+        counter_start = 0
+
+        handled_matches = set()
+        retry = True
+        
+        debug_counter = 0
+
+        while True:
+            start = 0
+
+            print(">>>>>>>>>>>>>>> ITERATION", debug_counter)
+            print("INPUT TEXT >>>>:", text)
+
+            debug_counter += 1
+
+            # match_amount = len(re.findall("\d+[ \d]+\d+", text))
+            # m = re.search("\d+[ \d]+\d+", text)
+
+            if debug_counter > 4:
+                break
+
+
+        # print("MATCHES NUMBER:", match_amount)
+            if not retry:
+                break
+
+
+            omit_end = False
+
+            match_amount = len(re.findall("\d+[ \d]+\d+", text))
+
+            for i,m in enumerate(re.finditer("\d+[ \d]+\d+", text)):
+                
+                if i+1 == match_amount and not omit_end:
+                    retry = False
+
+                if m.span(0) in handled_matches:
+                    print("ALDEADY HANDLED")
+                    continue
+                elif omit_end:
+                    print("OMITTING")
+                    continue
+                else:
+                    handled_matches.add(m.span(0))
+
+                print("HANDLED MATCHES:", handled_matches)
+
+                if m.group(0).strip():
+                    
+                    print("group:", m.group(0))
+                    print(m.span(0))
+
+                    span_start = m.span(0)[0]
+                    span_end = m.span(0)[1]
+
+                    span_text = text[:span_end]
+                    print("SPAN TEXT:", span_text)
+                    print("SPAN:", m.span(0))
+
+                    mask_index = len(span_text.split())
+                    mask_part = first_mask[:mask_index]
+
+                    print("mask_part:", mask_part)
+
+                    # for _ in range(len(text[start:span_start].split())):
+                    # for c in prev_mask[counter_start:span_start_ix]:
+                    #     counter_mask.append(c)
+
+                    # print("span_start_ix", span_start_ix)
+                    # print("CM3:", counter_mask)
+
+                    print("RES1:", res)
+                    print("text[start:span_start]", text[start:span_start])
+
+
+                    #accumulate result text
+                    res += text[start:span_start]
+                    start = span_end
+
+                    print("RES2:", res)
+
+                    # counter_start = len(text[:span_end].split())
+
+                    regrouped, squashed_idxs = regroup_after_replace(m.group(0))
+
+                    print("REGROUPED:", regrouped)
+
+                    res += regrouped
+
+                    print("RES3:", res)
+
+                    # if indices:
+                    # merged_indices.extend(indices)
+
+                    print("squashed_idxs", squashed_idxs)
+
+                    curr_part = update_mask(mask_part, squashed_idxs)
+
+                    print("CURR MASK:", curr_part)
+
+                    first_mask = merge_masks(first_mask, mask_part, curr_part)
+
+                    print("UPDATED FIRST MASK:", first_mask)
+
+                    new_text = merge_texts(text, res, span_end)
+
+                    print("RES:", res)
+
+                    print("new_text", new_text)
+                    print("text", text)
+                    print("span_end", span_end)
+
+                    if new_text != text:
+                        print(">>> OMIT END")
+                        omit_end = True
+
+                    text = new_text
+
+            glob_res = res
+
+            print("GLOB RES:", glob_res)
+
+            res = ""
+
+                    # counter_mask.extend(squashed_idxs)
+
+        # for _ in range(len(text[start:].split())):
+        #     counter_mask.append(1)
+
+        # for c in prev_mask[counter_start:]:
+        #     counter_mask.append(c)
+
+        # glob_res += text[start:]
+
+        print("GLOB RES:", glob_res)
+
+        print("TEXT:", text)
+    return text, first_mask
+
+def merge_texts(old, new, span_end):
+    res = new + old[span_end:]
+    return res
+
+
+
+def merge_masks(first_mask, mask_part, curr_part):
+    res = curr_part + first_mask[len(mask_part):]
+    return res
+
+
+def update_mask(mask_part, squashed_idxs):
+    res = []
+    shift = 0
+    for count in squashed_idxs[::-1]:
+        val = 0
+        for i in range(count):
+            val += mask_part[-1-i-shift]
+        res.insert(0, val)
+        shift += count
+    while shift < len(mask_part):
+        res.insert(0, mask_part[-1-shift])
+        shift+=1
+    return res
+
+
+def regroup_after_replace(text):
     # merged_indices = []
     squashed_idxs = []
     if text:
-        print("number group:", text, "start_ix", start_ix)
+        # print("number group:", text, "start_ix", start_ix)
         # indices = []
         nums = [int(x) for x in text.split()]
         new_nums = [nums[0]]
         # indices.append(start_ix)
-        submask = counter_mask[start_ix : start_ix + len(nums)]
+        # submask = counter_mask[start_ix : start_ix + len(nums)]
         start = 0
-        acc = submask[0]
+        # acc = submask[0]
+
+        acc = 1
+
         for i, n in enumerate(nums[1:]):
             if is_summable(new_nums[-1], n):
                 # print("summable")
                 new_nums[-1] = new_nums[-1] + n
                 # indices.append(i + 1 + start_ix)
-                acc += submask[i + 1]
+                # acc += submask[i + 1]
+
+                acc += 1
 
             elif can_be_merged(new_nums[-1], n):
                 # print("can be merged")
@@ -358,19 +554,23 @@ def regroup_after_replace(text, start_ix, counter_mask):
                 extracted = int(n / m)
                 new_nums[-1] = (new_nums[-1] + extracted) * m
                 # indices.append(i + 1 + start_ix)
-                acc += submask[i + 1]
+                # acc += submask[i + 1]
+
+                acc += 1
 
             else:
                 # print("not")
                 new_nums.append(n)
 
-                print("submask", submask)
-                print("submask[start : i + 1]", submask[start : i + 1])
+                # print("submask", submask)
+                # print("submask[start : i + 1]", submask[start : i + 1])
 
                 squashed_idxs.append(acc)
-                start = i + 1
+                # start = i + 1
 
-                acc = submask[i + 1]
+                # acc = submask[i + 1]
+
+                acc = 1
 
                 # if len(indices) > 1:
                 # merged_indices.append(indices)
@@ -382,6 +582,9 @@ def regroup_after_replace(text, start_ix, counter_mask):
 
         new_text = " ".join([str(n) for n in new_nums])
         print("new_text", new_text)
+
+        assert sum(squashed_idxs) == len(text.split())
+
         return new_text, squashed_idxs
     else:
         return ""
@@ -407,7 +610,11 @@ text = "семьсот миллиардов один рубль, один, дв�
 # text = "Я купил сорок пять килограмм картошки и 7 пудов моркови"
 
 
-text = "один, ,два три, четыре, пять"
+# text = "один, ,два три, четыре, пять"
+
+# text = "один,двадцать два какой то текст"
+
+text = "один два, тридцать три, пятьдесят пять,шестьдесят шесть сто двадцать четыре, привет как дела"
 
 replaced, counter_mask = extractor.replace(text)
 
@@ -417,6 +624,6 @@ print("REPLACED:", replaced)
 
 print(counter_mask)
 
-text, mask = regroup_numbers(replaced, counter_mask)
+text, mask = regroup_numbers3(replaced, counter_mask)
 
 print("RESULT:", text, mask)
