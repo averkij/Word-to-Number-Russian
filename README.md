@@ -1,4 +1,4 @@
-# Word-to-Number (Russian)
+# Word-to-Number (Russian). ASR optimized.
 
 Проект для перевода чисел, записанных в текстовом виде на русском языке.
 
