@@ -1,5 +1,8 @@
 from number import NUMBER
 from natasha.extractors import Extractor
+import re
+
+NON_SUMMABLE_FIRST_NUMBERS = [10]
 
 
 class NumberExtractor(Extractor):
@@ -75,279 +78,59 @@ class NumberExtractor(Extractor):
         return space_count - 1
 
 
-    def replace_groups(self, text):
-        """
-        Замена сгруппированных составных чисел в тексте
-
-        Аргументы:
-            text: исходный текст
-
-        Результат:
-            new_text: текст с замененными числами
-        """
-        if text:
-            start = 0
-            matches = list(self.parser.findall(text))
-            groups = []
-            group_matches = []
-
-            for i, match in enumerate(matches):
-                if i == 0:
-                    start = match.span.start
-                if i == len(matches) - 1:
-                    next_match = match
-                else:
-                    next_match = matches[i + 1]
-                group_matches.append(match.fact)
-                if (
-                    text[match.span.stop : next_match.span.start].strip()
-                    or next_match == match
-                ):
-                    groups.append((group_matches, start, match.span.stop))
-                    group_matches = []
-                    start = next_match.span.start
-
-            new_text = ""
-            start = 0
-
-            for group in groups:
-                num = 0
-                nums = []
-                new_text += text[start : group[1]]
-
-                print("groups---------------------------------")
-
-                for match in group[0]:
-
-                    print("MATCH", match)
-
-                    curr_num = (
-                        match.int * match.multiplier if match.multiplier else match.int
-                    )
-
-                    # print("\ncurr_num", curr_num)
-                    # print("nums", nums)
-
-                    if match.multiplier:
-                        num = (num + match.int) * match.multiplier
-                        nums.append(num)
-                        num = 0
-                    elif num > curr_num or num == 0:
-                        # print(f"{num} > {curr_num}")
-                        num += curr_num
-                    else:
-                        # print(f"--------------кладем {num} в nums")
-                        nums.append(num)
-                        num = 0
-                    # else:
-                    #     nums.append(match.int)
-
-                    # print("------num", num)
-
-                if num > 0:
-                    # print(f"кладем {num} в nums")
-                    nums.append(num)
-
-                # print("=============================nums", nums)
-
-                # new_text += str(sum(nums))
-
-                new_nums = [nums[0]]
-                for i, n in enumerate(nums[1:]):
-                    if is_summable(new_nums[-1], n):
-                        new_nums[-1] = new_nums[-1] + n
-                    else:
-                        new_nums.append(n)
-
-                new_text += " ".join([str(n) for n in new_nums])
-
-                start = group[2]
-
-                # print("group", group)
-
-                # print("--------------------=> new_text", new_text)
-
-            new_text += text[start:]
-
-            if start == 0:
-                print("return text")
-                return text
-            else:
-                print("return new_text")
-                return new_text
-        else:
-            return None
-
     def regroup_numbers(self, text):
         replaced, counter_mask = self.replace(text)
         print("REPLACED:", replaced, "words counter:", counter_mask)
-        res = regroup_numbers3(replaced, counter_mask)
+        res = regroup_numbers(replaced, counter_mask)
         return res
 
 
-def is_summable(num1, num2):
-    # print("sum", num1, num2)
-    if num1 == 10 or num2 == 0:
-        return False
-    place = len(str(num2))
-    str1 = str(num1)
-    # print(">", str1, place)
-    if len(str1) > place and str1[-place] == "0":
-        # print("sum true")
-        return True
-    return False
-
-
-def can_be_merged(num1, num2):
-    # print("merge", num1, num2)
-    # extract multiplexer
-    if num2 > num1:
-        m = get_multiplexer(num2)
-        num = int(num2 / m)
-        if is_summable(num1, num):
-            # print("sum in merge")
+    def is_summable(self, num1, num2):
+        if num1 == 10 or num2 == 0:
+            return False
+        place = len(str(num2))
+        str1 = str(num1)
+        if len(str1) > place and str1[-place] == "0":
             return True
-    return False
+        return False
 
 
-def get_multiplexer(num):
-    m = 1
-    while num % 10 == 0:
-        num = num / 10
-        m *= 10
-    return m
+    def can_be_merged(self, num1, num2):
+        if num2 > num1:
+            m = self.get_multiplexer(num2)
+            num = int(num2 / m)
+            if self.is_summable(num1, num):
+                return True
+        return False
 
 
-NON_SUMMABLE_FIRST_NUMBERS = [10]
-
-extractor = NumberExtractor()
-
-# text = "один, два, три, три два один, четыре пять шесть, тысяча девяносто пять, две тысячи шесть, семьсот двадцать один, пятьдесят шестьдесят, два два два, семь умножить на семь"
-# text = "четыре пять шесть, две тысячи три, десять два"
-
-text = "Это случилось в Девятьсот восемьдесят семь тысяч шестьсот пятьдесят четыре, это один два три по полудни"
-
-# print(extractor.replace(text))
-
-# print(extractor.replace_groups("десять тысяча"))
-
-# print(extractor.regroup_after_replace("900 80 7000 600 50 4"))
-
-# print(get_multiplexer(600))
-
-import re
+    def get_multiplexer(self, num):
+        m = 1
+        while num % 10 == 0:
+            num = num / 10
+            m *= 10
+        return m
 
 
-def regroup_numbers2(text, first_mask):
+
+def regroup_numbers(text, first_mask):
     res = ""
-    # merged_indices = []
-    curr_mask = []
-
-    print("first_mask", first_mask)
-
     if text:
         start = 0
-        counter_start = 0
-
-
-        for m in re.finditer("\d+[ \d]+\d+", text):
-            if m.group(0).strip():
-                
-                print("group:", m.group(0))
-                print(m.span(0))
-
-                span_start = m.span(0)[0]
-                span_end = m.span(0)[1]
-
-                span_text = text[:span_end]
-                print("SPAN TEXT:", span_text)
-
-                mask_index = len(span_text.split())
-                mask_part = first_mask[:mask_index]
-
-                print("mask_part:", mask_part)
-
-                # for _ in range(len(text[start:span_start].split())):
-                # for c in prev_mask[counter_start:span_start_ix]:
-                #     counter_mask.append(c)
-
-                # print("span_start_ix", span_start_ix)
-                # print("CM3:", counter_mask)
-
-                #accumulate result text
-                res += text[start:span_start]
-                start = span_end
-
-
-
-                # counter_start = len(text[:span_end].split())
-
-                regrouped, squashed_idxs = regroup_after_replace(m.group(0))
-                res += regrouped
-
-                # if indices:
-                # merged_indices.extend(indices)
-
-                print("squashed_idxs", squashed_idxs)
-
-                mask_part = update_mask(mask_part, squashed_idxs)
-
-                print("CURR MASK:", mask_part)
-
-                merge_masks(first_mask, mask_part)
-
-                # counter_mask.extend(squashed_idxs)
-
-        # for _ in range(len(text[start:].split())):
-        #     counter_mask.append(1)
-
-        # for c in prev_mask[counter_start:]:
-        #     counter_mask.append(c)
-
-        res += text[start:]
-    return res, mask_part
-
-
-def regroup_numbers3(text, first_mask):
-    res = ""
-    # merged_indices = []
-    curr_mask = []
-
-    print("START----------------------------")
-
-    print("first_mask", first_mask)
-
-    if text:
-        start = 0
-        counter_start = 0
-
         handled_matches = set()
         retry = True
-        
         debug_counter = 0
 
         while True:
             start = 0
-
-            print(">>>>>>>>>>>>>>> ITERATION", debug_counter)
-            print("INPUT TEXT >>>>:", text)
-
             debug_counter += 1
-
-            # match_amount = len(re.findall("\d+[ \d]+\d+", text))
-            # m = re.search("\d+[ \d]+\d+", text)
 
             if debug_counter > 4:
                 break
 
-
-        # print("MATCHES NUMBER:", match_amount)
             if not retry:
                 break
-
-
             omit_end = False
-
             match_amount = len(re.findall("\d+[ \d]+\d+", text))
 
             for i,m in enumerate(re.finditer("\d+[ \d]+\d+", text)):
@@ -356,106 +139,39 @@ def regroup_numbers3(text, first_mask):
                     retry = False
 
                 if m.span(0) in handled_matches:
-                    print("ALDEADY HANDLED")
                     continue
                 elif omit_end:
-                    print("OMITTING")
                     continue
                 else:
                     handled_matches.add(m.span(0))
 
-                print("HANDLED MATCHES:", handled_matches)
-
                 if m.group(0).strip():
-                    
-                    print("group:", m.group(0))
-                    print(m.span(0))
-
                     span_start = m.span(0)[0]
                     span_end = m.span(0)[1]
 
                     span_text = text[:span_end]
-                    print("SPAN TEXT:", span_text)
-                    print("SPAN:", m.span(0))
 
                     mask_index = len(span_text.split())
                     mask_part = first_mask[:mask_index]
 
-                    print("mask_part:", mask_part)
-
-                    # for _ in range(len(text[start:span_start].split())):
-                    # for c in prev_mask[counter_start:span_start_ix]:
-                    #     counter_mask.append(c)
-
-                    # print("span_start_ix", span_start_ix)
-                    # print("CM3:", counter_mask)
-
-                    print("RES1:", res)
-                    print("text[start:span_start]", text[start:span_start])
-
-
-                    #accumulate result text
                     res += text[start:span_start]
                     start = span_end
 
-                    print("RES2:", res)
-
-                    # counter_start = len(text[:span_end].split())
-
                     regrouped, squashed_idxs = regroup_after_replace(m.group(0))
-
-                    print("REGROUPED:", regrouped)
 
                     res += regrouped
 
-                    print("RES3:", res)
-
-                    # if indices:
-                    # merged_indices.extend(indices)
-
-                    print("squashed_idxs", squashed_idxs)
-
                     curr_part = update_mask(mask_part, squashed_idxs)
-
-                    print("CURR MASK:", curr_part)
-
                     first_mask = merge_masks(first_mask, mask_part, curr_part)
-
-                    print("UPDATED FIRST MASK:", first_mask)
-
                     new_text = merge_texts(text, res, span_end)
 
-                    print("RES:", res)
-
-                    print("new_text", new_text)
-                    print("text", text)
-                    print("span_end", span_end)
-
                     if new_text != text:
-                        print(">>> OMIT END")
                         omit_end = True
 
                     text = new_text
 
             glob_res = res
-
-            print("GLOB RES:", glob_res)
-
             res = ""
-
-                    # counter_mask.extend(squashed_idxs)
-
-        # for _ in range(len(text[start:].split())):
-        #     counter_mask.append(1)
-
-        # for c in prev_mask[counter_start:]:
-        #     counter_mask.append(c)
-
-        # glob_res += text[start:]
-
-        print("GLOB RES:", glob_res)
-
-        print("TEXT:", text)
     return text, first_mask
 
 def merge_texts(old, new, span_end):
@@ -485,69 +201,33 @@ def update_mask(mask_part, squashed_idxs):
 
 
 def regroup_after_replace(text):
-    # merged_indices = []
     squashed_idxs = []
     if text:
-        # print("number group:", text, "start_ix", start_ix)
-        # indices = []
         nums = [int(x) for x in text.split()]
         new_nums = [nums[0]]
-        # indices.append(start_ix)
-        # submask = counter_mask[start_ix : start_ix + len(nums)]
-        start = 0
-        # acc = submask[0]
-
         acc = 1
-
         for i, n in enumerate(nums[1:]):
-            if is_summable(new_nums[-1], n):
-                # print("summable")
+            if extractor.is_summable(new_nums[-1], n):
                 new_nums[-1] = new_nums[-1] + n
-                # indices.append(i + 1 + start_ix)
-                # acc += submask[i + 1]
-
                 acc += 1
-
-            elif can_be_merged(new_nums[-1], n):
-                # print("can be merged")
-                m = get_multiplexer(n)
+            elif extractor.can_be_merged(new_nums[-1], n):
+                m = extractor.get_multiplexer(n)
                 extracted = int(n / m)
                 new_nums[-1] = (new_nums[-1] + extracted) * m
-                # indices.append(i + 1 + start_ix)
-                # acc += submask[i + 1]
-
                 acc += 1
-
             else:
-                # print("not")
                 new_nums.append(n)
-
-                # print("submask", submask)
-                # print("submask[start : i + 1]", submask[start : i + 1])
-
                 squashed_idxs.append(acc)
-                # start = i + 1
-
-                # acc = submask[i + 1]
-
                 acc = 1
-
-                # if len(indices) > 1:
-                # merged_indices.append(indices)
-                # indices = [i + 1 + start_ix]
-        # if len(indices) > 1:
-        # merged_indices.append(indices)
-
         squashed_idxs.append(acc)
-
         new_text = " ".join([str(n) for n in new_nums])
-        print("new_text", new_text)
-
         assert sum(squashed_idxs) == len(text.split())
-
         return new_text, squashed_idxs
     else:
         return ""
+
+
+extractor = NumberExtractor()
 
 
 # fix long numbers
@@ -586,6 +266,6 @@ print("REPLACED:", replaced)
 
 print(counter_mask)
 
-text, mask = regroup_numbers3(replaced, counter_mask)
+text, mask = regroup_numbers(replaced, counter_mask)
 
 print("RESULT:", text, mask)
