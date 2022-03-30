@@ -1,6 +1,5 @@
 from number import NUMBER
 from natasha.extractors import Extractor
-from collections import defaultdict
 
 
 def squash_spaces(text):
@@ -110,7 +109,7 @@ class NumberExtractor(Extractor):
             else:
                 return new_text.strip(), counter_mask
         else:
-            return None, counter_mask
+            return "", counter_mask
 
     def handle_subsequent_numbers(self, matches):
         return matches
@@ -615,6 +614,8 @@ text = "семьсот миллиардов один рубль, один, дв�
 # text = "один,двадцать два какой то текст"
 
 text = "один два, тридцать три, пятьдесят пять,шестьдесят шесть сто двадцать четыре, привет как дела"
+
+text = ""
 
 replaced, counter_mask = extractor.replace(text)
 
