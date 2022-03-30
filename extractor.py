@@ -295,11 +295,17 @@ def regroup_numbers(text, prev_mask):
                 span_start = m.span(0)[0]
                 span_end = m.span(0)[1]
 
-                span_start_ix = len(text[:span_start].split())
+                span_text = text[:span_start]
+                print("SPAN:", span_text)
+
+                span_start_ix = len(span_text.split())
 
                 # for _ in range(len(text[start:span_start].split())):
                 for c in prev_mask[counter_start:span_start_ix]:
                     counter_mask.append(c)
+
+                print("span_start_ix", span_start_ix)
+                print("CM3:", counter_mask)
 
                 res += text[start:span_start]
                 start = span_end
