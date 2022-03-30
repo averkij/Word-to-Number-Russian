@@ -3,6 +3,23 @@ from natasha.extractors import Extractor
 from collections import defaultdict
 
 
+def squash_spaces(text):
+    return re.sub(" +", " ", text)
+
+
+def get_words_count(text):
+    text = squash_spaces(text)
+    if not text:
+        return 0
+
+    space_count = text.count(" ")
+
+    if space_count == 0:
+        return -1
+
+    return space_count - 1
+
+
 class NumberExtractor(Extractor):
     def __init__(self):
         super(NumberExtractor, self).__init__(NUMBER)
@@ -27,6 +44,9 @@ class NumberExtractor(Extractor):
             new_text = ""
             start = 0
 
+            # for correct span words counting
+            text = f" {text} "
+
             matches = self.parser.findall(text)
             matches = self.handle_subsequent_numbers(matches)
 
@@ -39,16 +59,25 @@ class NumberExtractor(Extractor):
                     match,
                 )
 
-                print("START:", start, "STOP:", match.span.start)
-                print("span", text[start : match.span.start])
-
                 span_text = text[start : match.span.start]
 
-                if len(span_text) > 2:
-                    for _ in range(len(span_text.split())):
+                print("START:", start, "STOP:", match.span.start)
+                print(f"span: |{span_text}|")
+
+                append_to_mask_count = get_words_count(span_text)
+                if append_to_mask_count < 0:
+                    counter_mask = counter_mask[:-1]
+                elif append_to_mask_count > 0:
+                    for _ in range(append_to_mask_count):
                         counter_mask.append(1)
-                elif len(span_text) == 1 and span_text != " ":
-                    counter_mask.pop()
+
+                print("CM1:", counter_mask)
+
+                # if len(span_text) > 2:
+                #     for _ in range(len(span_text.split()) - edge_coef(span_text)):
+                #         counter_mask.append(1)
+                # elif len(span_text) == 1 and span_text != " ":
+                #     counter_mask.pop()
 
                 if match.fact.multiplier:
                     num = match.fact.int * match.fact.multiplier
@@ -57,20 +86,29 @@ class NumberExtractor(Extractor):
                     num = match.fact.int
                     counter_mask.append(1)
 
+                print("CM2:", counter_mask)
+
                 new_text += text[start : match.span.start] + str(num)
                 start = match.span.stop
 
             new_text += text[start:]
 
-            for _ in range(len(text[start:].split())):
-                counter_mask.append(1)
+            # for _ in range(len(text[start:].split())):
+            #     counter_mask.append(1)
+
+            append_to_mask_count = get_words_count(text[start:])
+            if append_to_mask_count < 0:
+                counter_mask = counter_mask[:-1]
+            elif append_to_mask_count > 0:
+                for _ in range(append_to_mask_count):
+                    counter_mask.append(1)
 
             print("counter_mask", counter_mask)
 
             if start == 0:
-                return text, counter_mask
+                return text.strip(), counter_mask
             else:
-                return new_text, counter_mask
+                return new_text.strip(), counter_mask
         else:
             return None, counter_mask
 
@@ -354,11 +392,16 @@ text = "годы его правления одна тысяча восемьс�
 
 text = "семьсот миллиардов один рубль, один, два, три три"
 
-text = "Выплаты за второго-третьего ребенка выросли на девять сотых процента"
+# text = "Выплаты за второго-третьего ребенка выросли на девять сотых процента"
 
-text = "Я купил сорок пять килограмм картошки и 7 пудов моркови"
+# text = "Я купил сорок пять килограмм картошки и 7 пудов моркови"
 
-text = "один, ,два"
+# text = "один, ,два"
+
+# text = "Я купил сорок пять килограмм картошки и 7 пудов моркови"
+
+
+text = "один, ,два три, четыре, пять"
 
 replaced, counter_mask = extractor.replace(text)
 
@@ -366,8 +409,8 @@ print("INPUT:", text)
 
 print("REPLACED:", replaced)
 
-text, mask = regroup_numbers(replaced, counter_mask)
-
 print(counter_mask)
+
+text, mask = regroup_numbers(replaced, counter_mask)
 
 print("RESULT:", text, mask)
