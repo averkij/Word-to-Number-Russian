@@ -80,11 +80,8 @@ class NumberExtractor(Extractor):
         -------
         new_text: result text
         """
-        mask = []
+        mask, new_text, start = [], "", 0
         if text:
-            new_text = ""
-            start = 0
-
             # correct span counting
             text = f" {text} "
 
@@ -102,21 +99,23 @@ class NumberExtractor(Extractor):
 
                 new_text += text[start : match.span.start] + str(num)
                 start = match.span.stop
-
             new_text += text[start:]
-
             mask = self.update_first_mask(text[start:], mask)
 
             if start == 0:
+                if apply_regrouping:
+                    return self.regroup_number_sequences(text.strip(), mask)
                 return text.strip(), mask
             elif apply_regrouping:
                 return self.regroup_number_sequences(new_text.strip(), mask)
-            else:
-                return new_text.strip(), mask
+            return new_text.strip(), mask
         else:
             return "", mask
 
     def update_first_mask(self, span_text, mask):
+        """
+        Update first pass mask (mask in 'replace' method)
+        """
         append_to_mask_count = self.get_words_count(span_text)
         if append_to_mask_count < 0:
             mask = mask[:-1]
@@ -126,6 +125,9 @@ class NumberExtractor(Extractor):
         return mask
 
     def get_words_count(self, text):
+        """
+        Calculate words count between two extracted items
+        """
         text = squash_spaces(text)
         if not text:
             return 0
@@ -134,29 +136,23 @@ class NumberExtractor(Extractor):
             return -1
         return space_count - 1
 
-    def regroup_number_sequences(self, text, first_mask):
+    def regroup_number_sequences(self, text_orig, first_mask):
         """
         Find number sequences and apply regrouping.
         """
-        curr_text = ""
+        text, curr_text = text_orig, ""
         if text:
             start = 0
             handled_matches = set()
             retry = True
-            debug_counter = 0
 
             while True:
                 start = 0
-                debug_counter += 1
-
-                if debug_counter > 4:
-                    break
-
-                if not retry:
-                    break
-                omit_end = False
                 match_amount = len(re.findall("\d+[ \d]+\d+", text))
 
+                if not retry or not match_amount:
+                    break
+                omit_end = False
                 for i, m in enumerate(re.finditer("\d+[ \d]+\d+", text)):
 
                     if i + 1 == match_amount and not omit_end:
@@ -199,14 +195,23 @@ class NumberExtractor(Extractor):
         return text, first_mask
 
     def merge_texts(self, old, new, span_end):
+        """
+        Merge partially handled text with full initial one
+        """
         res = new + old[span_end:]
         return res
 
     def merge_masks(self, first_mask, mask_part, curr_part):
+        """
+        Merge partially handled mask with full initial one
+        """
         res = curr_part + first_mask[len(mask_part) :]
         return res
 
     def update_mask(self, mask_part, squashed_idxs):
+        """
+        Calculate mask using squashed words indices
+        """
         res = []
         shift = 0
         for count in squashed_idxs[::-1]:
@@ -253,15 +258,15 @@ class NumberExtractor(Extractor):
 
 
 # fix long numbers
-text = "Госдолг США в тысяча девятьсот пятидесятом году составил двести пятьдесят шесть миллиардов девятьсот миллионов долларов"
+# text = "Госдолг США в тысяча девятьсот пятидесятом году составил двести пятьдесят шесть миллиардов девятьсот миллионов долларов"
 
-# fix 0
-text = "пять шесть ноль ноль ноль семь двадцать ноль"
+# # fix 0
+# text = "пять шесть ноль ноль ноль семь двадцать ноль"
 
-# we need to return word indices
-text = "годы его правления одна тысяча восемьсот тридцать пятый и две тысячи девятьсот пятьдесят четвертый годы"
+# # we need to return word indices
+# text = "годы его правления одна тысяча восемьсот тридцать пятый и две тысячи девятьсот пятьдесят четвертый годы"
 
-text = "семьсот миллиардов один рубль, один, два, три три"
+# text = "семьсот миллиардов один рубль, один, два, три три"
 
 # text = "Выплаты за второго-третьего ребенка выросли на девять сотых процента"
 
@@ -276,21 +281,24 @@ text = "семьсот миллиардов один рубль, один, дв�
 
 # text = "один,двадцать два какой то текст"
 
-text = "один два, тридцать три, пятьдесят пять,шестьдесят шесть сто двадцать четыре, привет как дела"
+# text = "один два, тридцать три, пятьдесят пять,шестьдесят шесть сто двадцать четыре, привет как дела"
 
 # text = ""
 
 # text = "здесь тридцать три тысяча два числа"
 
+# replaced, counter_mask = extractor.replace(text)
+
+# print("INPUT:", text)
+
+# print("REPLACED:", replaced)
+
+# print(counter_mask)
+
+
 extractor = NumberExtractor()
 
-replaced, counter_mask = extractor.replace(text)
-
-print("INPUT:", text)
-
-print("REPLACED:", replaced)
-
-print(counter_mask)
+text = "Выплаты за второго-третьего ребенка выросли на девять сотых процента"
 
 text, mask = extractor.replace(text, apply_regrouping=True)
 
