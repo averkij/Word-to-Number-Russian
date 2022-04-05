@@ -1,46 +1,64 @@
-# Word-to-Number (Russian). ASR optimized.
+# Denormalize numbers in Russian
 
-Проект для перевода чисел, записанных в текстовом виде на русском языке.
+Inverse text normalization for numbers in Russian language. Optimized for ASR task.
 
-## Необходимые библиотеки
+## Intro
 
-* **yargy**;
-* **natasha**.
-
-Установка библиотек:
-
-`$ pip install -r requirements.txt`
-
-## Структура проекта
-
-* **number.py** - грамматики для текстового представления чисел;
-* **extractor.py** - класс для извлечения чисел;
-* **test.py** - модуль тестирования.
-
-## Пример использования
-
-Код:
+This tool handles complicated denormalization cases such as:
 
 ```python
-text = "Выплаты за второго-третьего ребенка выросли на пятьсот двадцать пять тысячных процента и составили 90 тысяч рублей"
-extractor = NumberExtractor()
-
-for match in extractor(text):
-    print(match.fact)
-
-print(extractor.replace(text))
-print(extractor.replace_groups(text))
+INPUT:  "семьсот миллиардов один рубль, один, два, три три",
+RESULT: "700000000001 рубль, 1, 2, 3 3"
 ```
 
-Результат:
+```python
+INPUT:  "мой телефон девятьсот десять ноль девяносто пять пятьдесят шесть десять",
+RESULT: "мой телефон 910 0 95 56 10",
+        [1, 1, 2, 1, 2, 2, 1],
+```
 
-```shell
-Number(int=2, multiplier=None)
-Number(int=3, multiplier=None)
-Number(int=500, multiplier=None)
-Number(int=20, multiplier=None)
-Number(int=5, multiplier=0.001)
-Number(int=90, multiplier=1000)
-Выплаты за 2-3 ребенка выросли на 500 20 0.005 процента и составили 90000 рублей
-Выплаты за 2-3 ребенка выросли на 0.525 процента и составили 90000 рублей
+```python
+INPUT:  "одна тысяча восемьсот тридцать первый и тысяча девятьсот пятьдесят четвертый",
+RESULT: "1831 и 1954",
+        [5, 1, 4],
+```
+
+### Mapping
+
+It also can produce mapping for the squashed numbers. This mapping can be further used in the ASR pipeline — e.g., to recalculate the word-level time offsets after the denormalization task.
+
+```python
+INPUT:   "семьсот миллиардов один рубль, один, два, три три",
+RESULT:  "700000000001 рубль, 1, 2, 3 3"
+MASK:    [3, 1, 1, 1, 1, 1]
+```
+
+```python
+INPUT:   "мой телефон девятьсот десять ноль девяносто пять пятьдесят шесть десять",
+RESULT:  "мой телефон 910 0 95 56 10",
+MASK:    [1, 1, 2, 1, 2, 2, 1],
+```
+
+```python
+INPUT:   "одна тысяча восемьсот тридцать первый и тысяча девятьсот пятьдесят четвертый",
+RESULT:  "1831 и 1954",
+MASK:    [5, 1, 4],
+```
+
+## Usage
+
+In the following example note that "пятьдесят пять,шестьдесят шесть" are 3 words to squash.
+
+```python
+text = "один два, тридцать три, пятьдесят пять,шестьдесят шесть сто двадцать четыре, привет как дела"
+extractor = NumberExtractor()
+
+res, mask = extractor.replace(text, apply_regrouping=True)
+```
+
+Result:
+
+```python
+TEXT:  "1 2, 33, 55,66 124, привет как дела",
+MASK:  [1, 1, 2, 3, 3, 1, 1, 1],
 ```
